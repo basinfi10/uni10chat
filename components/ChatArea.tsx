@@ -295,32 +295,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
           )}
 
-          {liveStatus && liveStatus !== 'disconnected' && (
-            <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-4 w-full max-w-xl px-4 animate-fade-in-up">
-              <div className="bg-white/90 backdrop-blur-md border border-blue-100 shadow-2xl rounded-[32px] p-6 w-full flex flex-col items-center gap-4">
-                <div className="flex items-center gap-3 w-full justify-between border-b border-gray-50 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${liveStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{liveStatus === 'connected' ? 'Live Chat Active' : 'Connecting...'}</span>
-                  </div>
+          {(liveUserTrans || liveModelTrans) && (
+            <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-4 w-full max-w-lg px-4 animate-fade-in-up">
+              <div className="bg-white/80 backdrop-blur-md border border-blue-100 shadow-xl rounded-3xl p-4 w-full flex flex-col items-center gap-2">
+                <div className="flex items-center gap-3 w-full justify-center border-b border-gray-50/50 pb-2">
                   <VoiceWave isActive={liveStatus === 'connected'} />
                 </div>
                 
-                <div className="w-full space-y-3 min-h-[60px] max-h-[120px] overflow-y-auto custom-scrollbar px-2 text-center">
+                <div className="w-full space-y-2 max-h-[100px] overflow-y-auto custom-scrollbar px-1 text-center">
                   {liveUserTrans && (
                     <div className="animate-fade-in">
-                      <p className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5">YOU</p>
-                      <p className="text-sm font-medium text-gray-700">{liveUserTrans}</p>
+                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-tighter opacity-70">YOU</p>
+                      <p className="text-sm font-bold text-gray-700 leading-tight">{liveUserTrans}</p>
                     </div>
                   )}
                   {liveModelTrans && (
                     <div className="animate-fade-in">
-                      <p className="text-[10px] font-black text-green-500 uppercase tracking-tighter mb-0.5">SO-DAM</p>
-                      <p className="text-sm font-medium text-gray-800 italic">{liveModelTrans}</p>
+                      <p className="text-[9px] font-black text-green-500 uppercase tracking-tighter opacity-70">SO-DAM</p>
+                      <p className="text-sm font-bold text-gray-800 italic leading-tight">{liveModelTrans}</p>
                     </div>
-                  )}
-                  {!liveUserTrans && !liveModelTrans && liveStatus === 'connected' && (
-                    <p className="text-xs text-gray-400 font-medium animate-pulse py-2 italic">듣고 있습니다... 말씀해 주세요.</p>
                   )}
                 </div>
               </div>

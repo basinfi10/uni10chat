@@ -363,13 +363,40 @@ const App: React.FC = () => {
       />
       <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden">
         <div className="h-14 border-b border-gray-100 flex items-center px-4 justify-between bg-white z-10 no-print">
-           <div className="flex items-center gap-3">
-             <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg"><Menu size={20} /></button>
-             <div className="flex items-center gap-2">
-               <h2 className="text-2xl font-black text-gray-800 flex items-center gap-1"><Sparkles className="text-blue-600" size={24}/>Uni10</h2>
-               <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100 uppercase tracking-tighter mt-1">{APP_VERSION}</span>
-             </div>
-           </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsMobileSidebarOpen(true)} 
+                className="lg:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                title="메뉴 열기"
+              >
+                <Menu size={20} />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                  <h2 className="text-xl font-black text-gray-800 flex items-center gap-1 leading-tight">
+                    <Sparkles className="text-blue-600" size={20}/>Uni10
+                  </h2>
+                  <span className="text-[9px] font-black text-blue-400 uppercase tracking-tighter -mt-0.5">Project Next</span>
+                </div>
+                
+                <div className="h-6 w-[1px] bg-gray-100 mx-1"></div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100 uppercase tracking-tighter">
+                    {APP_VERSION}
+                  </span>
+                  
+                  {isInterpretActive && (
+                    <div className="flex items-center gap-2 px-2.5 py-0.5 bg-blue-50 border border-blue-100 rounded-md animate-fade-in shadow-sm">
+                      <div className={`w-1.5 h-1.5 rounded-full ${liveStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`}></div>
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest whitespace-nowrap">
+                        {liveStatus === 'connected' ? 'LIVE ACTIVE' : 'CONNECTING...'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
         </div>
         <div className="flex-1 overflow-hidden relative flex flex-col">
            <ChatArea 
