@@ -1,0 +1,7 @@
+{
+  "name": "Uni10 Web Client",
+  "description": "A modern React web adaptation of the Uni10 AI Client with Gemini integration.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

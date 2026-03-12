@@ -1,0 +1,172 @@
+
+
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <title>Uni10 AI Workspace</title>
+    
+    <!-- App Icons & Manifest -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%232563eb'/%3E%3Cpath d='M256 112l48 96 96 48-96 48-48 96-48-96-96-48 96-48z' fill='%23ffffff'/%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%232563eb'/%3E%3Cpath d='M256 112l48 96 96 48-96 48-48 96-48-96-96-48 96-48z' fill='%23ffffff'/%3E%3C/svg%3E" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- PrismJS for Syntax Highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', '"Noto Sans KR"', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+              mono: ['"Roboto Mono"', 'Consolas', 'Menlo', 'Monaco', '"Courier New"', 'monospace'],
+            },
+            colors: {
+              sidebar: '#f8f9fa',
+              input: '#f0f4f9',
+              primary: '#0b5ed7',
+              gemini: '#198754',
+              codeBg: '#f0f4f9',
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.3s ease-out forwards',
+              'blob': 'blob 7s infinite',
+            },
+            keyframes: {
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              blob: {
+                '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                '100%': { transform: 'translate(0px, 0px) scale(1)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      
+      body { 
+        -webkit-font-smoothing: antialiased; 
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      vercel-live-feedback, #vercel-toolbar, .vercel-toolbar {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        z-index: -9999 !important;
+      }
+      
+      .prose p { margin-bottom: 1.25em; line-height: 1.8; }
+
+      /* 완벽한 인쇄용 스타일 가이드 */
+      @media print {
+        header, aside, .no-print, footer, .shrink-0 {
+          display: none !important;
+          height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        body, #root, .flex-1, .flex-col {
+          display: block !important;
+          height: auto !important;
+          overflow: visible !important;
+          background: white !important;
+        }
+        .chat-print-area {
+          overflow: visible !important;
+          height: auto !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          position: static !important;
+        }
+        .markdown-content {
+          font-size: 12pt !important;
+          color: black !important;
+        }
+        .rounded-2xl {
+          border: 1px solid #eee !important;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+        }
+      }
+
+      /* 학습 모드 헤더 파란색 적용 */
+      .markdown-content h3 {
+        color: #2563eb !important;
+        font-weight: 800 !important;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+      }
+
+      code[class*="language-"],
+      pre[class*="language-"] {
+        color: #1f1f1f !important;
+        font-family: 'Roboto Mono', Consolas, Menlo, Monaco, 'Courier New', monospace !important;
+        font-size: 14px;
+        line-height: 1.6;
+        direction: ltr;
+        text-align: left;
+        white-space: pre;
+        word-spacing: normal;
+        word-break: normal;
+        tab-size: 4;
+        hyphens: none;
+        background: transparent !important;
+        text-shadow: none !important;
+      }
+
+      .token.comment, .token.prolog, .token.doctype, .token.cdata { color: #8c8c8c !important; font-style: normal !important; }
+      .token.keyword, .token.atrule, .token.keyword-control, .token.boolean { color: #0033b3 !important; font-weight: bold; }
+      .token.function, .token.class-name, .token.decorator { color: #795da3 !important; }
+      .token.string, .token.char, .token.attr-value { color: #067d17 !important; }
+      .token.number, .token.constant, .token.symbol { color: #1750eb !important; }
+      .token.variable, .token.operator, .token.punctuation, .token.property, .token.regex, .token.entity { color: #1f1f1f !important; }
+      .token.tag { color: #0033b3 !important; }
+      .token.attr-name { color: #795da3 !important; }
+      .token.important, .token.bold { font-weight: bold; }
+      .token.italic { font-style: italic; }
+      code[class*="language-"]::selection, pre[class*="language-"]::selection { background: #cce0ff; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
+    "uuid": "https://esm.sh/uuid@^13.0.0",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-white text-slate-800 h-screen w-screen overflow-hidden font-sans">
+    <div id="root" class="h-full w-full"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
