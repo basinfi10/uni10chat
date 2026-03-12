@@ -5,10 +5,10 @@ import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import InputArea from './components/InputArea';
 import ApiKeyModal from './components/ApiKeyModal';
-import LiveSession from './components/LiveSession';
 import { AppMode, Attachment, ChatMessage, ChatSession, Role, ChatFeatures, PromptStyle, InterpretationMode, MODELS } from './types';
-import { streamResponse, handleImageFeature, generateSpeech, updateApiKey } from './services/geminiService';
+import { streamResponse, handleImageFeature, generateSpeech, updateApiKey, LiveClient } from './services/geminiService';
 import { Sparkles, Menu } from 'lucide-react';
+import { LIVE_PERSONAS, PERSONA_COMMON_RULES } from './constants/LivePersonas';
 
 declare global {
   interface AIStudio {
@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const APP_VERSION = "v2.26";
+const APP_VERSION = "v2.27";
 
 const App: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -40,6 +40,12 @@ const App: React.FC = () => {
   const [features, setFeatures] = useState<ChatFeatures>({
     deepResearch: false, imageGenEdit: false, canvas: false, dynamicView: false, guideLearning: false,
   });
+
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>("0");
+  const [liveStatus, setLiveStatus] = useState<string>("disconnected");
+  const [liveUserTrans, setLiveUserTrans] = useState("");
+  const [liveModelTrans, setLiveModelTrans] = useState("");
+  const liveClientRef = useRef<LiveClient | null>(null);
 
   const [isMicActive, setIsMicActive] = useState(false);
   const [isSpeakerActive, setIsSpeakerActive] = useState(false);
@@ -106,6 +112,123 @@ const App: React.FC = () => {
     setMode(AppMode.CHAT);
     setFeatures({ deepResearch: false, imageGenEdit: false, canvas: false, dynamicView: false, guideLearning: false });
     setIsInterpretActive(false);
+    if (liveClientRef.current) {
+      liveClientRef.current.disconnect();
+      liveClientRef.current = null;
+      setLiveStatus("disconnected");
+    }
+  };
+
+  const handleToggleLiveChat = async () => {
+    if (isInterpretActive) {
+      setIsInterpretActive(false);
+      if (liveClientRef.current) {
+        liveClientRef.current.disconnect();
+        liveClientRef.current = null;
+      }
+      setLiveStatus("disconnected");
+    } else {
+      const savedKey = localStorage.getItem('uni10_api_key');
+      if (!savedKey && !window.aistudio) {
+        alert("라이브 채팅을 시작하려면 API Key가 필요합니다.");
+        setIsSettingsModalOpen(true);
+        return;
+      }
+      
+      setIsInterpretActive(true);
+      setLiveStatus("connecting");
+      const persona = LIVE_PERSONAS.find(p => p.id === selectedPersonaId) || LIVE_PERSONAS[0];
+      
+      // 마이크 존재 여부 1차 확인 (사전 안내)
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasMic = devices.some(device => device.kind === 'audioinput');
+        if (!hasMic) {
+          alert("일시적으로 마이크를 찾을 수 없습니다. 마이크 장치를 연결해 주세요.");
+          setIsInterpretActive(false);
+          return;
+        }
+      } catch (e) {
+        console.warn("Device check failed", e);
+      }
+
+      liveClientRef.current = new LiveClient(
+        (status, err) => {
+          setLiveStatus(status);
+          if (err) {
+            console.error("Live Chat Error:", err);
+          }
+        },
+        (text, isUser, isFinal) => {
+          if (isUser) {
+            setLiveUserTrans(prev => isFinal ? "" : prev + text);
+            if (isFinal && text.trim()) {
+              // Add user transcript to chat session
+              handleAppendLiveTranscript(Role.USER, text);
+            }
+          } else {
+            setLiveModelTrans(prev => text);
+            if (isFinal && text.trim()) {
+              // Add model transcript to chat session
+              handleAppendLiveTranscript(Role.MODEL, text);
+            }
+          }
+        }
+      );
+      
+      try {
+        const fullInstruction = PERSONA_COMMON_RULES + "\n" + persona.systemInstruction;
+        console.log("Connecting to Live Client with persona:", persona.label);
+        
+        // 연결 전 안내 메시지 (상태 업데이트)
+        setLiveModelTrans("소담이가 대화를 준비하고 있습니다... 잠시만 기다려 주세요.");
+        
+        await liveClientRef.current.connect(fullInstruction);
+        console.log("Live Client connected successfully");
+        
+        // 연결 성공 후 초기 메시지
+        setLiveModelTrans(""); // 안내 메시지 지우기
+        handleAppendLiveTranscript(Role.MODEL, persona.initialMessage);
+      } catch (err) {
+        console.error("Live Client connection failed:", err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        
+        setIsInterpretActive(false);
+        setLiveStatus("error");
+        
+        if (errMsg.includes("마이크")) {
+          alert(`마이크 설정 오류: ${errMsg}\n\n라이브 채팅은 음성 입력이 필수입니다. 마이크 연결 확인 후 다시 시도해 주세요.`);
+        } else {
+          alert(`라이브 채팅 연결 실패: ${errMsg}`);
+        }
+      }
+    }
+  };
+
+  const handleAppendLiveTranscript = (role: Role, text: string) => {
+    if (!currentSessionId) return;
+    const msgId = uuidv4();
+    const activeModel = MODELS.LIVE;
+    addMessageToSession(currentSessionId, role, text, msgId, activeModel);
+  };
+
+  const handleSelectPersona = async (personaId: string) => {
+    setSelectedPersonaId(personaId);
+    if (isInterpretActive && liveClientRef.current) {
+      // Reconnect with new persona
+      const persona = LIVE_PERSONAS.find(p => p.id === personaId) || LIVE_PERSONAS[0];
+      const fullInstruction = PERSONA_COMMON_RULES + "\n" + persona.systemInstruction;
+      
+      // Disconnect and reconnect is safest for full context reset
+      liveClientRef.current.disconnect();
+      setLiveStatus("connecting");
+      try {
+        await liveClientRef.current.connect(fullInstruction);
+        handleAppendLiveTranscript(Role.MODEL, persona.initialMessage);
+      } catch (e) {
+        setLiveStatus("error");
+      }
+    }
   };
 
   const handleSaveApiKey = (key: string) => { updateApiKey(key); setIsSettingsModalOpen(false); };
@@ -236,9 +359,9 @@ const App: React.FC = () => {
         currentMode={mode} onSetMode={handleSetMode} onSettingsClick={() => setIsSettingsModalOpen(true)} 
         onImportSession={handleImportSession} onExportBackup={handleExportBackup} onSaveSession={handleSaveSessionManually}
         isInterpretActive={isInterpretActive} interpretMode={interpretMode} onSetInterpretMode={setInterpretMode}
+        selectedPersonaId={selectedPersonaId} onSelectPersona={handleSelectPersona}
       />
       <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden">
-        {isInterpretActive && <div className="absolute inset-0 z-50 animate-fade-in-up"><LiveSession onClose={() => setIsInterpretActive(false)} /></div>}
         <div className="h-14 border-b border-gray-100 flex items-center px-4 justify-between bg-white z-10 no-print">
            <div className="flex items-center gap-3">
              <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg"><Menu size={20} /></button>
@@ -256,6 +379,7 @@ const App: React.FC = () => {
              onOpenSettings={() => setIsSettingsModalOpen(true)} onClearAll={handleClearAllSettings}
              audioVolume={audioVolume} setAudioVolume={setAudioVolume}
              isAudioLooping={isAudioLooping} onToggleLoop={() => setIsAudioLooping(!isAudioLooping)}
+             liveStatus={liveStatus} liveUserTrans={liveUserTrans} liveModelTrans={liveModelTrans}
            />
         </div>
         <div className="shrink-0 bg-white">
@@ -264,7 +388,7 @@ const App: React.FC = () => {
             mode={mode} features={features} setFeatures={setFeatures} isMicActive={isMicActive} toggleMic={() => setIsMicActive(!isMicActive)}
             isSpeakerActive={isSpeakerActive} toggleSpeaker={() => setIsSpeakerActive(!isSpeakerActive)}
             promptStyle={promptStyle} setPromptStyle={setPromptStyle} isAutoTranslate={isAutoTranslate} toggleAutoTranslate={() => setIsAutoTranslate(!isAutoTranslate)}
-            isInterpretActive={isInterpretActive} interpretMode={interpretMode} setInterpretMode={setInterpretMode} toggleInterpret={() => setIsInterpretActive(!isInterpretActive)}
+            isInterpretActive={isInterpretActive} interpretMode={interpretMode} setInterpretMode={setInterpretMode} toggleInterpret={handleToggleLiveChat}
           />
         </div>
       </div>

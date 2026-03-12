@@ -205,7 +205,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave, onClose, onReset, isS
         <div className="p-6 bg-gray-50 border-t border-gray-100 shrink-0 text-center">
           <div className="inline-flex items-center gap-2 text-gray-400 text-[10px] font-black uppercase tracking-widest">
             <Info size={12} />
-            <span>Uni10 Multi-Model Engine v2.02</span>
+            <span>Uni10 Multi-Model Engine v2.27</span>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   Loader2, FileDown, Square, Play, Volume2, Settings, AlertTriangle, Trash2, HelpCircle,
   Printer, FileText, Download, Volume1, Repeat, Repeat1, RotateCcw
 } from 'lucide-react';
+import VoiceWave from './VoiceWave';
 
 declare const Prism: any;
 
@@ -25,6 +26,9 @@ interface ChatAreaProps {
   setAudioVolume?: (vol: number) => void;
   isAudioLooping?: boolean;
   onToggleLoop?: () => void;
+  liveStatus?: string;
+  liveUserTrans?: string;
+  liveModelTrans?: string;
 }
 
 const CodeBlock = ({ inline, className, children, ...props }: any) => {
@@ -69,13 +73,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   audioVolume = 1.0,
   setAudioVolume,
   isAudioLooping = false,
-  onToggleLoop
+  onToggleLoop,
+  liveStatus,
+  liveUserTrans,
+  liveModelTrans
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showVolumeSlider, setShowVolumeSlider] = useState<string | null>(null);
   
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isGenerating]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isGenerating, liveUserTrans, liveModelTrans]);
 
   const handleDownload = (text: string, type: 'txt' | 'doc') => {
     try {
@@ -134,14 +141,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white relative">
-      {messages.length === 0 ? (
+      {messages.length === 0 && (!liveStatus || liveStatus === 'disconnected') ? (
         <div className="flex-1 flex flex-col items-center justify-center text-gray-300 p-8 text-center animate-fade-in-up">
           <Bot size={64} className="opacity-10 mb-6" />
           <h2 className="text-4xl font-black text-gray-100 tracking-tighter uppercase">Uni10 AI</h2>
           <p className="mt-4 text-xs font-bold text-gray-400 max-w-xs leading-relaxed">대화를 시작하여 혁신적인 AI 워크스페이스를 경험하세요.</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-12 custom-scrollbar chat-print-area">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-12 custom-scrollbar chat-print-area pb-40">
           {messages.map((msg) => {
             const isPlaying = currentlyPlayingId === msg.id;
             const isError = msg.text.includes("시스템 오류") || msg.text.includes("할당량 초과");
@@ -280,10 +287,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               </div>
             );
           })}
+          
           {isGenerating && (
             <div className="flex gap-5 max-w-5xl mx-auto justify-start animate-fade-in-up">
               <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white mt-1 shadow-sm"><Bot size={22} /></div>
               <div className="bg-white border border-gray-100 rounded-2xl px-6 py-4 shadow-sm flex items-center gap-3"><div className="flex gap-1.5"><span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></span><span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-100"></span><span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></span></div></div>
+            </div>
+          )}
+
+          {liveStatus && liveStatus !== 'disconnected' && (
+            <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-4 w-full max-w-xl px-4 animate-fade-in-up">
+              <div className="bg-white/90 backdrop-blur-md border border-blue-100 shadow-2xl rounded-[32px] p-6 w-full flex flex-col items-center gap-4">
+                <div className="flex items-center gap-3 w-full justify-between border-b border-gray-50 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${liveStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{liveStatus === 'connected' ? 'Live Chat Active' : 'Connecting...'}</span>
+                  </div>
+                  <VoiceWave isActive={liveStatus === 'connected'} />
+                </div>
+                
+                <div className="w-full space-y-3 min-h-[60px] max-h-[120px] overflow-y-auto custom-scrollbar px-2 text-center">
+                  {liveUserTrans && (
+                    <div className="animate-fade-in">
+                      <p className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5">YOU</p>
+                      <p className="text-sm font-medium text-gray-700">{liveUserTrans}</p>
+                    </div>
+                  )}
+                  {liveModelTrans && (
+                    <div className="animate-fade-in">
+                      <p className="text-[10px] font-black text-green-500 uppercase tracking-tighter mb-0.5">SO-DAM</p>
+                      <p className="text-sm font-medium text-gray-800 italic">{liveModelTrans}</p>
+                    </div>
+                  )}
+                  {!liveUserTrans && !liveModelTrans && liveStatus === 'connected' && (
+                    <p className="text-xs text-gray-400 font-medium animate-pulse py-2 italic">듣고 있습니다... 말씀해 주세요.</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           <div ref={bottomRef} className="h-4" />

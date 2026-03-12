@@ -211,34 +211,78 @@ export class LiveClient {
     const ai = getAI();
     this.onStatus("connecting");
     try {
+      if (!ai.live) {
+        throw new Error("현재 SDK 버전에서 Multimodal Live API(ai.live)를 지원하지 않거나 초기화되지 않았습니다.");
+      }
+      
+      console.log("Initializing AudioContext...");
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      console.log("Requesting microphone access...");
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (micError: any) {
+        console.warn("Microphone access failed:", micError);
+        if (micError.name === 'NotFoundError' || micError.name === 'DevicesNotFoundError') {
+          throw new Error("연결된 마이크를 찾을 수 없습니다. 라이브 채팅을 위해서는 마이크가 필요합니다.");
+        } else if (micError.name === 'NotAllowedError' || micError.name === 'PermissionDeniedError') {
+          throw new Error("마이크 사용 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해 주세요.");
+        }
+        throw new Error(`마이크 연결 오류: ${micError.message || "마이크를 확인할 수 없습니다."}`);
+      }
+      
+      const modelName = MODELS.LIVE;
+      console.log("Connecting to Live API with model:", modelName);
+      
       this.sessionPromise = ai.live.connect({
-        model: MODELS.LIVE,
+        model: modelName,
         callbacks: {
           onopen: () => {
+            console.log("Live Socket Opened");
             this.onStatus("connected");
-            const source = this.audioContext!.createMediaStreamSource(this.stream!);
-            const scriptProcessor = this.audioContext!.createScriptProcessor(4096, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const pcmBlob = { data: encode(new Uint8Array(new Int16Array(inputData.map(v => v * 32768)).buffer)), mimeType: 'audio/pcm;rate=16000' };
-              this.sessionPromise?.then(session => session.sendRealtimeInput({ media: pcmBlob }));
-            };
-            source.connect(scriptProcessor);
-            scriptProcessor.connect(this.audioContext!.destination);
+            if (this.audioContext && this.stream) {
+              const source = this.audioContext.createMediaStreamSource(this.stream);
+              const scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+              scriptProcessor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcmBlob = { data: encode(new Uint8Array(new Int16Array(inputData.map(v => v * 32768)).buffer)), mimeType: 'audio/pcm;rate=16000' };
+                this.sessionPromise?.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+              };
+              source.connect(scriptProcessor);
+              scriptProcessor.connect(this.audioContext.destination);
+            }
           },
           onmessage: async (message: LiveServerMessage) => {
+            // console.log("Live Message:", message);
             if (message.serverContent?.inputTranscription) this.onTranscription(message.serverContent.inputTranscription.text, true, !!message.serverContent.turnComplete);
             if (message.serverContent?.outputTranscription) this.onTranscription(message.serverContent.outputTranscription.text, false, !!message.serverContent.turnComplete);
           },
-          onerror: (e: any) => this.onStatus("error", e.message || String(e)),
-          onclose: () => this.onStatus("disconnected")
+          onerror: (e: any) => {
+            console.error("Live Socket Error Callback:", e);
+            const errMsg = e.message || (typeof e === 'string' ? e : JSON.stringify(e));
+            this.onStatus("error", errMsg);
+          },
+          onclose: () => {
+            console.log("Live Socket Closed");
+            this.onStatus("disconnected");
+          }
         },
-        config: { responseModalities: [Modality.AUDIO], systemInstruction, inputAudioTranscription: {}, outputAudioTranscription: {} }
+        config: { 
+          responseModalities: [Modality.AUDIO], 
+          systemInstruction, 
+          inputAudioTranscription: {}, 
+          outputAudioTranscription: {} 
+        }
       });
+      
       await this.sessionPromise;
-    } catch (e: any) { this.onStatus("error", e.message || String(e)); throw e; }
+      console.log("Live Session Promise Resolved");
+    } catch (e: any) { 
+      console.error("LiveClient.connect internal error:", e);
+      const errorMessage = e.message || String(e);
+      this.onStatus("error", errorMessage); 
+      throw e; 
+    }
   }
   disconnect() {
     if (this.sessionPromise) this.sessionPromise.then(session => session.close());

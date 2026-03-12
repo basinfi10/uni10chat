@@ -1,12 +1,13 @@
 
 import React, { useRef } from 'react';
 import { ChatSession, AppMode, InterpretationMode } from '../types';
+import { LIVE_PERSONAS } from '../constants/LivePersonas';
 import { 
   MessageSquare, Plus, Settings, Trash2, X, 
   Code, ImageIcon, Menu, 
   ChefHat, Heart, Lightbulb, GraduationCap, Save,
   Headphones, MessageSquareText, FileText, Speaker, Download, FileUp,
-  ArrowUp, Edit2, Languages, Origami
+  ArrowUp, Edit2, Languages, Origami, UserCircle
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,6 +31,8 @@ interface SidebarProps {
   isInterpretActive: boolean;
   interpretMode: InterpretationMode;
   onSetInterpretMode: (mode: InterpretationMode) => void;
+  selectedPersonaId: string;
+  onSelectPersona: (id: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -52,7 +55,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSaveSession,
   isInterpretActive,
   interpretMode,
-  onSetInterpretMode
+  onSetInterpretMode,
+  selectedPersonaId,
+  onSelectPersona
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,13 +69,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     { mode: AppMode.LIFE_TIPS, label: '생활 Tips', icon: <Lightbulb size={20} /> },
     { mode: AppMode.ENGLISH_LEARNING, label: '영어 학습', icon: <GraduationCap size={20} /> },
     { mode: AppMode.JAPANESE_LEARNING, label: '일본어 학습', icon: <Origami size={20} /> },
-  ];
-
-  const interpretItems = [
-    { id: 'voice_text' as InterpretationMode, label: '[음성, 문자]', icon: <Headphones size={20} /> },
-    { id: 'text_only' as InterpretationMode, label: '[문자 만]', icon: <MessageSquareText size={20} /> },
-    { id: 'subtitle_text' as InterpretationMode, label: '[자막 - 문자]', icon: <FileText size={20} /> },
-    { id: 'voice_only' as InterpretationMode, label: '[자막 - 음성]', icon: <Speaker size={20} /> },
   ];
 
   const handleRename = (id: string, currentTitle: string) => {
@@ -97,18 +95,23 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        <div className="px-3 py-4 space-y-1 shrink-0 border-b border-gray-100">
+        <div className="px-3 py-4 space-y-1 shrink-0 border-b border-gray-100 overflow-y-auto max-h-[60vh]">
           {!isCollapsed && (
             <div className={`px-3 py-2 text-[10px] font-black uppercase tracking-widest ${isInterpretActive ? 'text-green-600' : 'text-gray-400'}`}>
-              {isInterpretActive ? '통역 모드 선택' : '기능 선택'}
+              {isInterpretActive ? '페르소나 선택' : '기능 선택'}
             </div>
           )}
           
           {isInterpretActive ? (
-             interpretItems.map((item) => (
-               <button key={item.id} onClick={() => onSetInterpretMode(item.id)} className={`flex items-center gap-3 rounded-lg transition-all w-full px-3 py-2.5 text-sm font-bold ${interpretMode === item.id ? 'bg-green-100 text-green-700 shadow-sm scale-[1.02]' : 'text-gray-400 hover:bg-gray-100'}`}>
-                 {item.icon}
-                 {!isCollapsed && <span>{item.label}</span>}
+             LIVE_PERSONAS.map((item) => (
+               <button key={item.id} onClick={() => onSelectPersona(item.id)} className={`flex items-center gap-3 rounded-lg transition-all w-full px-3 py-2 text-sm font-bold ${selectedPersonaId === item.id ? 'bg-green-100 text-green-700 shadow-sm scale-[1.02]' : 'text-gray-400 hover:bg-gray-100'}`}>
+                 <UserCircle size={20} className={selectedPersonaId === item.id ? 'text-green-600' : 'text-gray-300'} />
+                 {!isCollapsed && (
+                   <div className="flex flex-col items-start overflow-hidden">
+                     <span className="truncate w-full text-left">{item.label}</span>
+                     <span className="text-[10px] opacity-60 font-medium truncate w-full text-left">{item.roleTitle}</span>
+                   </div>
+                 )}
                </button>
              ))
           ) : (
