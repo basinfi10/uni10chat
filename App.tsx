@@ -141,6 +141,8 @@ const App: React.FC = () => {
       setLiveStatus("connecting");
       setUserVolume(0);
       setModelVolume(0);
+      setIsMicActive(true);   // AUTO ON
+      setIsSpeakerActive(true); // AUTO ON
 
       // Clear current chat session messages on entry
       setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [] } : s));

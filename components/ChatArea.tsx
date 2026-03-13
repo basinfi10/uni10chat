@@ -31,7 +31,7 @@ const LiveWaveform: React.FC<{ volume: number }> = ({ volume }) => {
       const centerX = width / 2;
       const centerY = height / 2;
       const baseRadius = width * 0.35;
-      const amplitude = volume * 60; // React to volume
+      const amplitude = volume * 100; // Increased reactiveness
 
       ctx.beginPath();
       ctx.strokeStyle = '#3b82f6';
