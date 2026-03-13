@@ -358,42 +358,42 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
           )}
 
-          {isInterpretActive && (
-            <div className="fixed inset-0 pointer-events-none z-30 flex flex-col items-center justify-start pt-[10vh]">
-              <div className="flex flex-col items-center gap-8 w-full max-w-2xl px-4">
-                <div className="relative flex items-center justify-center w-[300px] h-[300px]">
-                  <LiveWaveform volume={modelVolume} />
-                  <Bot size={48} className="text-blue-600/30 absolute" />
-                </div>
-                
-                <div className="w-full space-y-4 flex flex-col items-center pointer-events-auto mt-[-20px]">
-                  {(liveUserTrans || liveModelTrans) && (
-                    <div className="bg-white border border-gray-100 shadow-2xl rounded-[32px] p-6 w-full max-w-lg flex flex-col items-center gap-4 animate-fade-in-up">
-                      <div className="w-full space-y-4 max-h-[120px] overflow-hidden px-2 text-center">
-                        {liveUserTrans && (
-                          <div className="animate-fade-in">
-                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest opacity-60 mb-1">USER</p>
-                            <p className="text-lg font-bold text-gray-700 leading-tight line-clamp-2">{liveUserTrans}</p>
-                          </div>
-                        )}
-                        {liveModelTrans && (
-                          <div className="animate-fade-in">
-                            <p className="text-[10px] font-black text-green-500 uppercase tracking-widest opacity-60 mb-1">SO-DAM</p>
-                            <p className="text-lg font-bold text-gray-800 italic leading-tight line-clamp-2">{liveModelTrans}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {!liveUserTrans && !liveModelTrans && (
-                    <p className="text-sm font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse opacity-40">Listening...</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          
           <div ref={bottomRef} className="h-4" />
+        </div>
+      )}
+
+      {isInterpretActive && (
+        <div className="fixed inset-0 pointer-events-none z-30 flex flex-col items-center justify-start pt-[10vh]">
+          <div className="flex flex-col items-center gap-8 w-full max-w-2xl px-4">
+            <div className="relative flex items-center justify-center w-[300px] h-[300px]">
+              <LiveWaveform volume={modelVolume} />
+              <Bot size={48} className="text-blue-600/30 absolute" />
+            </div>
+            
+            <div className="w-full space-y-4 flex flex-col items-center pointer-events-auto mt-[-20px]">
+              {(liveUserTrans || liveModelTrans) && (
+                <div className="bg-white border border-gray-100 shadow-2xl rounded-[32px] p-6 w-full max-w-lg flex flex-col items-center gap-4 animate-fade-in-up">
+                  <div className="w-full space-y-4 max-h-[120px] overflow-hidden px-2 text-center">
+                    {liveUserTrans && (
+                      <div className="animate-fade-in">
+                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest opacity-60 mb-1">USER</p>
+                        <p className="text-lg font-bold text-gray-700 leading-tight line-clamp-2">{liveUserTrans}</p>
+                      </div>
+                    )}
+                    {liveModelTrans && (
+                      <div className="animate-fade-in">
+                        <p className="text-[10px] font-black text-green-500 uppercase tracking-widest opacity-60 mb-1">SO-DAM</p>
+                        <p className="text-lg font-bold text-gray-800 italic leading-tight line-clamp-2">{liveModelTrans}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {!liveUserTrans && !liveModelTrans && (
+                <p className="text-sm font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse opacity-40">Listening...</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
