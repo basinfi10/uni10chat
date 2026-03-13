@@ -35,6 +35,45 @@ interface InputAreaProps {
   userVolume?: number;
 }
 
+const MicWaveform: React.FC<{ volume: number }> = ({ volume }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let animationId: number;
+    let phase = 0;
+    const render = () => {
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const baseRadius = width * 0.35;
+      const amplitude = volume * 50;
+      ctx.beginPath();
+      ctx.strokeStyle = '#22c55e'; // Green
+      ctx.lineWidth = 2;
+      for (let i = 0; i <= 360; i += 6) {
+        const rad = (i * Math.PI) / 180;
+        const wave = Math.sin(rad * 10 + phase) * amplitude;
+        const r = baseRadius + wave;
+        const x = centerX + Math.cos(rad) * r;
+        const y = centerY + Math.sin(rad) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      phase += 0.2;
+      animationId = requestAnimationFrame(render);
+    };
+    render();
+    return () => cancelAnimationFrame(animationId);
+  }, [volume]);
+  return <canvas ref={canvasRef} width={120} height={120} className="w-full h-full opacity-60" />;
+};
+
 const InputArea: React.FC<InputAreaProps> = ({ 
   onSend, 
   isGenerating, 
@@ -208,14 +247,13 @@ const InputArea: React.FC<InputAreaProps> = ({
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
              <div className="relative flex items-center justify-center w-32 h-32">
                 <div 
-                  className="absolute inset-0 bg-green-500 rounded-full opacity-5 transition-all duration-75"
+                  className="absolute inset-0 bg-green-500 rounded-full opacity-5"
                   style={{ transform: `scale(${1 + userVolume * 1.5})` }}
                 ></div>
-                <div 
-                  className="absolute inset-4 bg-green-500 rounded-full opacity-10 transition-all duration-100"
-                  style={{ transform: `scale(${1 + userVolume * 1.2})` }}
-                ></div>
-                <div className="absolute inset-8 bg-green-500 rounded-full opacity-15"></div>
+                <div className="absolute inset-0">
+                  <MicWaveform volume={userVolume} />
+                </div>
+                <div className="absolute inset-8 bg-green-500 rounded-full opacity-10"></div>
                 <Mic size={32} className={`text-green-600 z-20 transition-transform ${userVolume > 0.05 ? 'scale-110' : 'scale-100'}`} />
              </div>
              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-green-700 font-black text-lg text-center px-4 w-full truncate drop-shadow-sm">{liveInputStream || "말씀하세요..."}</div>
