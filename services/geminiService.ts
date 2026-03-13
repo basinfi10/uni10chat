@@ -335,6 +335,26 @@ export class LiveClient {
       throw e; 
     }
   }
+  private findAudioData(obj: any): string | null {
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj.inlineData?.data) return obj.inlineData.data;
+    if (obj.audio) return typeof obj.audio === 'string' ? obj.audio : obj.audio.data;
+    if (obj.data && typeof obj.data === 'string' && obj.data.length > 100) return obj.data;
+    
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const result = this.findAudioData(item);
+        if (result) return result;
+      }
+    } else {
+      for (const key in obj) {
+        const result = this.findAudioData(obj[key]);
+        if (result) return result;
+      }
+    }
+    return null;
+  }
+
   disconnect() {
     if (this.sessionPromise) this.sessionPromise.then(session => session.close());
     if (this.stream) this.stream.getTracks().forEach(track => track.stop());
