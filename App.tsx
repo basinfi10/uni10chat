@@ -45,6 +45,8 @@ const App: React.FC = () => {
   const [liveStatus, setLiveStatus] = useState<string>("disconnected");
   const [liveUserTrans, setLiveUserTrans] = useState("");
   const [liveModelTrans, setLiveModelTrans] = useState("");
+  const [userVolume, setUserVolume] = useState(0);
+  const [modelVolume, setModelVolume] = useState(0);
   const liveClientRef = useRef<LiveClient | null>(null);
 
   const [isMicActive, setIsMicActive] = useState(false);
@@ -137,6 +139,14 @@ const App: React.FC = () => {
       
       setIsInterpretActive(true);
       setLiveStatus("connecting");
+      setUserVolume(0);
+      setModelVolume(0);
+
+      // Clear current chat session messages on entry
+      if (currentSessionId) {
+        setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [] } : s));
+      }
+
       const persona = LIVE_PERSONAS.find(p => p.id === selectedPersonaId) || LIVE_PERSONAS[0];
       
       // 마이크 존재 여부 1차 확인 (사전 안내)
@@ -173,6 +183,10 @@ const App: React.FC = () => {
               handleAppendLiveTranscript(Role.MODEL, text);
             }
           }
+        },
+        (volume, isUser) => {
+          if (isUser) setUserVolume(volume);
+          else setModelVolume(volume);
         }
       );
       
@@ -239,7 +253,15 @@ const App: React.FC = () => {
   const handleExportBackup = () => { const data = JSON.stringify(sessions, null, 2); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `uni10_all_backup_${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url); };
   const handleImportSession = (file: File) => { const reader = new FileReader(); reader.onload = (e) => { try { const imported = JSON.parse(e.target?.result as string); if (Array.isArray(imported)) { setSessions(prev => { const existingIds = new Set(prev.map(s => s.id)); const filteredImported = imported.filter(s => !existingIds.has(s.id)); return [...filteredImported, ...prev]; }); alert(`${imported.length}개의 기록을 불러왔습니다.`); } else if (imported?.id) { setSessions(prev => [imported, ...prev]); setCurrentSessionId(imported.id); } } catch (err) { alert("백업 파일 오류"); } }; reader.readAsText(file); };
 
-  const handleSetMode = (newMode: AppMode) => { setMode(prev => prev === newMode ? AppMode.CHAT : newMode); setIsMobileSidebarOpen(false); };
+  const handleSetMode = (newMode: AppMode) => { 
+    setMode(prev => prev === newMode ? AppMode.CHAT : newMode); 
+    setIsMobileSidebarOpen(false); 
+    // Clear live transcripts and volume when leaving live mode or changing modes
+    setLiveUserTrans("");
+    setLiveModelTrans("");
+    setUserVolume(0);
+    setModelVolume(0);
+  };
 
   const handleSendMessage = async (text: string, attachments: Attachment[], displayLabel?: string) => {
     if (!currentSessionId || isGenerating) return;
@@ -407,7 +429,8 @@ const App: React.FC = () => {
              audioVolume={audioVolume} setAudioVolume={setAudioVolume}
              isAudioLooping={isAudioLooping} onToggleLoop={() => setIsAudioLooping(!isAudioLooping)}
              liveStatus={liveStatus} liveUserTrans={liveUserTrans} liveModelTrans={liveModelTrans}
-           />
+             isInterpretActive={isInterpretActive} modelVolume={modelVolume}
+            />
         </div>
         <div className="shrink-0 bg-white">
           <InputArea 
@@ -416,6 +439,7 @@ const App: React.FC = () => {
             isSpeakerActive={isSpeakerActive} toggleSpeaker={() => setIsSpeakerActive(!isSpeakerActive)}
             promptStyle={promptStyle} setPromptStyle={setPromptStyle} isAutoTranslate={isAutoTranslate} toggleAutoTranslate={() => setIsAutoTranslate(!isAutoTranslate)}
             isInterpretActive={isInterpretActive} interpretMode={interpretMode} setInterpretMode={setInterpretMode} toggleInterpret={handleToggleLiveChat}
+            userVolume={userVolume}
           />
         </div>
       </div>

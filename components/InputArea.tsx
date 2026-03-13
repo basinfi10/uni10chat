@@ -32,6 +32,7 @@ interface InputAreaProps {
   onStop?: () => void;
   liveInputStream?: string;
   isModelSpeaking?: boolean; 
+  userVolume?: number;
 }
 
 const InputArea: React.FC<InputAreaProps> = ({ 
@@ -52,6 +53,7 @@ const InputArea: React.FC<InputAreaProps> = ({
   toggleInterpret,
   onStop,
   liveInputStream,
+  userVolume = 0,
 }) => {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -205,10 +207,16 @@ const InputArea: React.FC<InputAreaProps> = ({
         {isMicActive && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
              <div className="relative flex items-center justify-center w-32 h-32">
-                <div className="absolute inset-0 bg-green-500 rounded-full opacity-10 animate-ping"></div>
-                <div className="absolute inset-4 bg-green-500 rounded-full opacity-20 animate-pulse"></div>
+                <div 
+                  className="absolute inset-0 bg-green-500 rounded-full opacity-10 transition-all duration-75"
+                  style={{ transform: `scale(${1 + userVolume * 2})`, opacity: 0.1 + userVolume * 0.5 }}
+                ></div>
+                <div 
+                  className="absolute inset-4 bg-green-500 rounded-full opacity-20 transition-all duration-100"
+                  style={{ transform: `scale(${1 + userVolume * 1.5})` }}
+                ></div>
                 <div className="absolute inset-8 bg-green-500 rounded-full opacity-30"></div>
-                <Mic size={32} className="text-green-600 z-20" />
+                <Mic size={32} className={`text-green-600 z-20 transition-transform ${userVolume > 0.1 ? 'scale-110' : 'scale-100'}`} />
              </div>
              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-green-700 font-black text-lg text-center px-4 w-full truncate drop-shadow-sm">{liveInputStream || "말씀하세요..."}</div>
           </div>

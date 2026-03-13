@@ -206,7 +206,11 @@ export class LiveClient {
   private sessionPromise: Promise<any> | null = null;
   private audioContext: AudioContext | null = null;
   private stream: MediaStream | null = null;
-  constructor(private onStatus: (status: string, error?: string) => void, private onTranscription: (text: string, isUser: boolean, isFinal: boolean) => void) {}
+  constructor(
+    private onStatus: (status: string, error?: string) => void, 
+    private onTranscription: (text: string, isUser: boolean, isFinal: boolean) => void,
+    private onVolumeChange: (volume: number, isUser: boolean) => void
+  ) {}
   async connect(systemInstruction: string) {
     const ai = getAI();
     this.onStatus("connecting");
@@ -220,7 +224,7 @@ export class LiveClient {
       
       console.log("Requesting microphone access...");
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
       } catch (micError: any) {
         console.warn("Microphone access failed:", micError);
         if (micError.name === 'NotFoundError' || micError.name === 'DevicesNotFoundError') {
@@ -245,6 +249,13 @@ export class LiveClient {
               const scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
               scriptProcessor.onaudioprocess = (e) => {
                 const inputData = e.inputBuffer.getChannelData(0);
+                
+                // Volume tracking (RMS)
+                let sum = 0;
+                for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+                const rms = Math.sqrt(sum / inputData.length);
+                this.onVolumeChange(rms, true);
+
                 const pcmBlob = { data: encode(new Uint8Array(new Int16Array(inputData.map(v => v * 32768)).buffer)), mimeType: 'audio/pcm;rate=16000' };
                 this.sessionPromise?.then(session => session.sendRealtimeInput({ media: pcmBlob }));
               };
@@ -253,9 +264,35 @@ export class LiveClient {
             }
           },
           onmessage: async (message: LiveServerMessage) => {
-            // console.log("Live Message:", message);
             if (message.serverContent?.inputTranscription) this.onTranscription(message.serverContent.inputTranscription.text, true, !!message.serverContent.turnComplete);
             if (message.serverContent?.outputTranscription) this.onTranscription(message.serverContent.outputTranscription.text, false, !!message.serverContent.turnComplete);
+            
+            // Audio Playback logic
+            const serverContent = message.serverContent as any;
+            const audioData = serverContent?.modelDraft?.audio || serverContent?.modelDraft?.inlineData?.data;
+            if (audioData && this.audioContext) {
+              try {
+                const binary = decode(audioData as string);
+                const int16 = new Int16Array(binary.buffer);
+                const float32 = new Float32Array(int16.length);
+                let sum = 0;
+                for (let i = 0; i < int16.length; i++) {
+                  float32[i] = int16[i] / 32768.0;
+                  sum += float32[i] * float32[i];
+                }
+                const rms = Math.sqrt(sum / float32.length);
+                this.onVolumeChange(rms, false);
+
+                const buffer = this.audioContext.createBuffer(1, float32.length, 16000);
+                buffer.getChannelData(0).set(float32);
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(this.audioContext.destination);
+                source.start();
+              } catch (playErr) {
+                console.error("Audio playback error:", playErr);
+              }
+            }
           },
           onerror: (e: any) => {
             console.error("Live Socket Error Callback:", e);

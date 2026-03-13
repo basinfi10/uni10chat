@@ -29,6 +29,8 @@ interface ChatAreaProps {
   liveStatus?: string;
   liveUserTrans?: string;
   liveModelTrans?: string;
+  isInterpretActive?: boolean;
+  modelVolume?: number;
 }
 
 const CodeBlock = ({ inline, className, children, ...props }: any) => {
@@ -76,7 +78,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleLoop,
   liveStatus,
   liveUserTrans,
-  liveModelTrans
+  liveModelTrans,
+  isInterpretActive,
+  modelVolume = 0
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -317,6 +321,37 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {isInterpretActive && (
+            <div className="fixed inset-0 pointer-events-none z-30 flex items-center justify-center bg-white/5 backdrop-blur-[1px]">
+               <div className="relative flex items-center justify-center w-64 h-64">
+                  {/* Dynamic "O" Circle Animation */}
+                  <div 
+                    className="absolute rounded-full border-4 border-blue-500/30 transition-all duration-75 ease-out"
+                    style={{ 
+                      width: `${100 + modelVolume * 300}px`, 
+                      height: `${100 + modelVolume * 300}px`,
+                      opacity: 0.5,
+                      transform: `scale(${1 + modelVolume * 0.5})`,
+                      boxShadow: `0 0 ${20 + modelVolume * 100}px rgba(59, 130, 246, 0.4)`
+                    }}
+                  ></div>
+                  <div 
+                    className="absolute rounded-full bg-blue-500/10 transition-all duration-100 ease-out"
+                    style={{ 
+                      width: `${80 + modelVolume * 200}px`, 
+                      height: `${80 + modelVolume * 200}px`,
+                      opacity: 0.3
+                    }}
+                  ></div>
+                  <Bot size={48} className="text-blue-600/50 animate-pulse" />
+               </div>
+               
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-24 text-center">
+                  <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest animate-pulse">Uni10 Live Listening...</p>
+               </div>
             </div>
           )}
           <div ref={bottomRef} className="h-4" />
