@@ -206,6 +206,13 @@ export class LiveClient {
   private sessionPromise: Promise<any> | null = null;
   private audioContext: AudioContext | null = null;
   private nextScheduleTime: number = 0;
+  private stream: MediaStream | null = null;
+
+  constructor(
+    private onStatus: (status: string, error?: string) => void, 
+    private onTranscription: (text: string, isUser: boolean, isFinal: boolean) => void,
+    private onVolumeChange: (volume: number, isUser: boolean) => void
+  ) {}
 
   async connect(systemInstruction: string) {
     const ai = getAI();
