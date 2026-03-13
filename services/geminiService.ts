@@ -219,12 +219,12 @@ export class LiveClient {
         throw new Error("현재 SDK 버전에서 Multimodal Live API(ai.live)를 지원하지 않거나 초기화되지 않았습니다.");
       }
       
-      console.log("Initializing AudioContext...");
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      console.log("Initializing AudioContext at 24000Hz (Gemini 2.0 Live Standard)...");
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       
       console.log("Requesting microphone access...");
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       } catch (micError: any) {
         console.warn("Microphone access failed:", micError);
         if (micError.name === 'NotFoundError' || micError.name === 'DevicesNotFoundError') {
@@ -282,17 +282,18 @@ export class LiveClient {
               if (this.audioContext.state === 'suspended') this.audioContext.resume();
               try {
                 const binary = decode(audioData as string);
-                // Ensure correct interpretation of PCM bytes (16-bit)
-                const int16 = new Int16Array(binary.buffer as ArrayBuffer, binary.byteOffset, binary.byteLength / 2);
-                const float32 = new Float32Array(int16.length);
+                // ROBUST PCM PARSING: Use DataView to avoid byte-alignment/offset issues that cause silent crashes
+                const dataView = new DataView(binary.buffer, binary.byteOffset, binary.byteLength);
+                const float32 = new Float32Array(binary.byteLength / 2);
                 let sumSq = 0;
-                for (let i = 0; i < int16.length; i++) {
-                  float32[i] = int16[i] / 32768.0;
+                for (let i = 0; i < float32.length; i++) {
+                  const val = dataView.getInt16(i * 2, true); // Little-endian PCM
+                  float32[i] = val / 32768.0;
                   sumSq += float32[i] * float32[i];
                 }
                 
                 const rms = Math.sqrt(sumSq / float32.length);
-                this.onVolumeChange(rms * 1.8, false); // Increased sensitivity
+                this.onVolumeChange(rms * 2.5, false); // Increased sensitivity
 
                 // Gemini 2.0 Live typically uses 24000Hz. Let's create buffer with 24k if possible, or 16k if that's what we requested.
                 const buffer = this.audioContext.createBuffer(1, float32.length, 24000); 
