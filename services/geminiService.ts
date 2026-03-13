@@ -265,37 +265,38 @@ export class LiveClient {
             }
           },
           onmessage: async (message: LiveServerMessage) => {
+            // DIAGNOSTIC LOG: Log the structure to see where audio is hidden
+            console.log("[Live Message Keys]:", Object.keys(message));
+            if (message.serverContent) console.log("[ServerContent Keys]:", Object.keys(message.serverContent));
+            
             if (message.serverContent?.inputTranscription) this.onTranscription(message.serverContent.inputTranscription.text, true, !!message.serverContent.turnComplete);
             if (message.serverContent?.outputTranscription) this.onTranscription(message.serverContent.outputTranscription.text, false, !!message.serverContent.turnComplete);
             
-            // Audio Playback logic: Support multiple possible data paths from Multimodal Live API
-            const serverContent = message.serverContent as any;
-            let audioData = serverContent?.modelDraft?.audio || serverContent?.modelDraft?.inlineData?.data;
-            
-            // NEW: Check parts array which is common in Gemini 2.0 Live
-            if (!audioData && serverContent?.modelDraft?.parts) {
-              const part = serverContent.modelDraft.parts.find((p: any) => p.inlineData?.data);
-              if (part) audioData = part.inlineData.data;
-            }
+            // GREEDY EXTRACTION: Search recursively for audio bytes
+            const audioData = this.findAudioData(message);
 
             if (audioData && this.audioContext) {
-              if (this.audioContext.state === 'suspended') this.audioContext.resume();
+              if (this.audioContext.state === 'suspended') {
+                console.log("[Audio] Resuming suspended context...");
+                await this.audioContext.resume();
+              }
               try {
                 const binary = decode(audioData as string);
-                // ROBUST PCM PARSING: Use DataView to avoid byte-alignment/offset issues that cause silent crashes
+                console.log(`[Audio] Found data length: ${binary.byteLength} bytes`);
+                
+                // ROBUST PCM PARSING (DataView)
                 const dataView = new DataView(binary.buffer, binary.byteOffset, binary.byteLength);
                 const float32 = new Float32Array(binary.byteLength / 2);
                 let sumSq = 0;
                 for (let i = 0; i < float32.length; i++) {
-                  const val = dataView.getInt16(i * 2, true); // Little-endian PCM
+                  const val = dataView.getInt16(i * 2, true); // Little-endian
                   float32[i] = val / 32768.0;
                   sumSq += float32[i] * float32[i];
                 }
                 
                 const rms = Math.sqrt(sumSq / float32.length);
-                this.onVolumeChange(rms * 2.5, false); // Increased sensitivity
+                this.onVolumeChange(rms * 2.5, false);
 
-                // Gemini 2.0 Live typically uses 24000Hz. Let's create buffer with 24k if possible, or 16k if that's what we requested.
                 const buffer = this.audioContext.createBuffer(1, float32.length, 24000); 
                 buffer.getChannelData(0).set(float32);
                 const source = this.audioContext.createBufferSource();
