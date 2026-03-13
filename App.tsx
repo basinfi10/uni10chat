@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const APP_VERSION = "v2.29";
+const APP_VERSION = "v2.29.1";
 
 const App: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);

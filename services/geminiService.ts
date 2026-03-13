@@ -205,12 +205,8 @@ export const streamResponse = async (
 export class LiveClient {
   private sessionPromise: Promise<any> | null = null;
   private audioContext: AudioContext | null = null;
-  private stream: MediaStream | null = null;
-  constructor(
-    private onStatus: (status: string, error?: string) => void, 
-    private onTranscription: (text: string, isUser: boolean, isFinal: boolean) => void,
-    private onVolumeChange: (volume: number, isUser: boolean) => void
-  ) {}
+  private nextScheduleTime: number = 0;
+
   async connect(systemInstruction: string) {
     const ai = getAI();
     this.onStatus("connecting");
@@ -219,12 +215,21 @@ export class LiveClient {
         throw new Error("현재 SDK 버전에서 Multimodal Live API(ai.live)를 지원하지 않거나 초기화되지 않았습니다.");
       }
       
-      console.log("Initializing AudioContext at 24000Hz (Gemini 2.0 Live Standard)...");
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      console.log("Initializing AudioContext at 16000Hz (Synced for Input/Output)...");
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      this.nextScheduleTime = 0;
       
       console.log("Requesting microphone access...");
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        this.stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            sampleRate: 16000, 
+            channelCount: 1, 
+            echoCancellation: true, 
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
       } catch (micError: any) {
         console.warn("Microphone access failed:", micError);
         if (micError.name === 'NotFoundError' || micError.name === 'DevicesNotFoundError') {
@@ -257,39 +262,37 @@ export class LiveClient {
                 const rms = Math.sqrt(sum / inputData.length);
                 this.onVolumeChange(rms, true);
 
-                const pcmBlob = { data: encode(new Uint8Array(new Int16Array(inputData.map(v => v * 32768)).buffer)), mimeType: 'audio/pcm;rate=16000' };
+                // Correct 16-bit PCM encoding for 16kHz input
+                const pcmData = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                  pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                }
+                const pcmBlob = { data: encode(new Uint8Array(pcmData.buffer)), mimeType: 'audio/pcm;rate=16000' };
                 this.sessionPromise?.then(session => session.sendRealtimeInput({ media: pcmBlob }));
               };
               source.connect(scriptProcessor);
-              scriptProcessor.connect(this.audioContext.destination);
+              // CRITICAL: Connect at least one node to prevent the clock from stopping, but NOT to destination to prevent feedback
+              const silentGain = this.audioContext.createGain();
+              silentGain.gain.value = 0;
+              scriptProcessor.connect(silentGain);
+              silentGain.connect(this.audioContext.destination);
             }
           },
           onmessage: async (message: LiveServerMessage) => {
-            // DIAGNOSTIC LOG: Log the structure to see where audio is hidden
-            console.log("[Live Message Keys]:", Object.keys(message));
-            if (message.serverContent) console.log("[ServerContent Keys]:", Object.keys(message.serverContent));
-            
             if (message.serverContent?.inputTranscription) this.onTranscription(message.serverContent.inputTranscription.text, true, !!message.serverContent.turnComplete);
             if (message.serverContent?.outputTranscription) this.onTranscription(message.serverContent.outputTranscription.text, false, !!message.serverContent.turnComplete);
             
-            // GREEDY EXTRACTION: Search recursively for audio bytes
             const audioData = this.findAudioData(message);
 
             if (audioData && this.audioContext) {
-              if (this.audioContext.state === 'suspended') {
-                console.log("[Audio] Resuming suspended context...");
-                await this.audioContext.resume();
-              }
+              if (this.audioContext.state === 'suspended') await this.audioContext.resume();
               try {
                 const binary = decode(audioData as string);
-                console.log(`[Audio] Found data length: ${binary.byteLength} bytes`);
-                
-                // ROBUST PCM PARSING (DataView)
                 const dataView = new DataView(binary.buffer, binary.byteOffset, binary.byteLength);
                 const float32 = new Float32Array(binary.byteLength / 2);
                 let sumSq = 0;
                 for (let i = 0; i < float32.length; i++) {
-                  const val = dataView.getInt16(i * 2, true); // Little-endian
+                  const val = dataView.getInt16(i * 2, true);
                   float32[i] = val / 32768.0;
                   sumSq += float32[i] * float32[i];
                 }
@@ -297,12 +300,20 @@ export class LiveClient {
                 const rms = Math.sqrt(sumSq / float32.length);
                 this.onVolumeChange(rms * 2.5, false);
 
+                // Gemini 2.0 Live output is 24000Hz. AudioContext at 16000Hz will resample.
                 const buffer = this.audioContext.createBuffer(1, float32.length, 24000); 
                 buffer.getChannelData(0).set(float32);
                 const source = this.audioContext.createBufferSource();
                 source.buffer = buffer;
                 source.connect(this.audioContext.destination);
-                source.start();
+                
+                // SCHEDULED PLAYBACK: prevent noise/jitter by queuing chunks end-to-end
+                const now = this.audioContext.currentTime;
+                if (this.nextScheduleTime < now) {
+                   this.nextScheduleTime = now + 0.05; // 50ms safety buffer
+                }
+                source.start(this.nextScheduleTime);
+                this.nextScheduleTime += buffer.duration;
               } catch (playErr) {
                 console.error("Audio playback error:", playErr);
               }
