@@ -12,6 +12,65 @@ import VoiceWave from './VoiceWave';
 
 declare const Prism: any;
 
+const LiveWaveform: React.FC<{ volume: number }> = ({ volume }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationId: number;
+    let phase = 0;
+
+    const render = () => {
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const baseRadius = width * 0.35;
+      const amplitude = volume * 60; // React to volume
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      for (let i = 0; i <= 360; i += 2) {
+        const rad = (i * Math.PI) / 180;
+        // Create wavy effect
+        const wave = Math.sin(rad * 8 + phase) * amplitude;
+        const r = baseRadius + wave;
+        const x = centerX + Math.cos(rad) * r;
+        const y = centerY + Math.sin(rad) * r;
+
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // Inner subtle ring
+      ctx.beginPath();
+      ctx.strokeStyle = '#3b82f633';
+      ctx.lineWidth = 1;
+      ctx.arc(centerX, centerY, baseRadius * 0.8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      phase += 0.15;
+      animationId = requestAnimationFrame(render);
+    };
+
+    render();
+    return () => cancelAnimationFrame(animationId);
+  }, [volume]);
+
+  return <canvas ref={canvasRef} width={400} height={400} className="w-full h-full" />;
+};
+
 interface ChatAreaProps {
   messages: ChatMessage[];
   isGenerating: boolean;
@@ -152,7 +211,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           <p className="mt-4 text-xs font-bold text-gray-400 max-w-xs leading-relaxed">대화를 시작하여 혁신적인 AI 워크스페이스를 경험하세요.</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-12 custom-scrollbar chat-print-area pb-40">
+        <div className={`flex-1 overflow-y-auto p-4 md:p-8 space-y-12 custom-scrollbar chat-print-area pb-40 ${isInterpretActive ? 'hidden' : 'block'}`}>
           {messages.map((msg) => {
             const isPlaying = currentlyPlayingId === msg.id;
             const isError = msg.text.includes("시스템 오류") || msg.text.includes("할당량 초과");
@@ -299,61 +358,41 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
           )}
 
-          {(liveUserTrans || liveModelTrans) && (
-            <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-4 w-full max-w-lg px-4 animate-fade-in-up">
-              <div className="bg-white/80 backdrop-blur-md border border-blue-100 shadow-xl rounded-3xl p-4 w-full flex flex-col items-center gap-2">
-                <div className="flex items-center gap-3 w-full justify-center border-b border-gray-50/50 pb-2">
-                  <VoiceWave isActive={liveStatus === 'connected'} />
+          {isInterpretActive && (
+            <div className="fixed inset-0 pointer-events-none z-30 flex flex-col items-center justify-start pt-[10vh]">
+              <div className="flex flex-col items-center gap-8 w-full max-w-2xl px-4">
+                <div className="relative flex items-center justify-center w-[300px] h-[300px]">
+                  <LiveWaveform volume={modelVolume} />
+                  <Bot size={48} className="text-blue-600/30 absolute" />
                 </div>
                 
-                <div className="w-full space-y-2 max-h-[100px] overflow-y-auto custom-scrollbar px-1 text-center">
-                  {liveUserTrans && (
-                    <div className="animate-fade-in">
-                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-tighter opacity-70">YOU</p>
-                      <p className="text-sm font-bold text-gray-700 leading-tight">{liveUserTrans}</p>
+                <div className="w-full space-y-4 flex flex-col items-center pointer-events-auto mt-[-20px]">
+                  {(liveUserTrans || liveModelTrans) && (
+                    <div className="bg-white border border-gray-100 shadow-2xl rounded-[32px] p-6 w-full max-w-lg flex flex-col items-center gap-4 animate-fade-in-up">
+                      <div className="w-full space-y-4 max-h-[120px] overflow-hidden px-2 text-center">
+                        {liveUserTrans && (
+                          <div className="animate-fade-in">
+                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest opacity-60 mb-1">USER</p>
+                            <p className="text-lg font-bold text-gray-700 leading-tight line-clamp-2">{liveUserTrans}</p>
+                          </div>
+                        )}
+                        {liveModelTrans && (
+                          <div className="animate-fade-in">
+                            <p className="text-[10px] font-black text-green-500 uppercase tracking-widest opacity-60 mb-1">SO-DAM</p>
+                            <p className="text-lg font-bold text-gray-800 italic leading-tight line-clamp-2">{liveModelTrans}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  {liveModelTrans && (
-                    <div className="animate-fade-in">
-                      <p className="text-[9px] font-black text-green-500 uppercase tracking-tighter opacity-70">SO-DAM</p>
-                      <p className="text-sm font-bold text-gray-800 italic leading-tight">{liveModelTrans}</p>
-                    </div>
+                  {!liveUserTrans && !liveModelTrans && (
+                    <p className="text-sm font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse opacity-40">Listening...</p>
                   )}
                 </div>
               </div>
             </div>
           )}
-
-          {isInterpretActive && (
-            <div className="fixed inset-0 pointer-events-none z-30 flex items-center justify-center bg-white/5 backdrop-blur-[1px]">
-               <div className="relative flex items-center justify-center w-64 h-64">
-                  {/* Dynamic "O" Circle Animation */}
-                  <div 
-                    className="absolute rounded-full border-4 border-blue-500/30 transition-all duration-75 ease-out"
-                    style={{ 
-                      width: `${100 + modelVolume * 300}px`, 
-                      height: `${100 + modelVolume * 300}px`,
-                      opacity: 0.5,
-                      transform: `scale(${1 + modelVolume * 0.5})`,
-                      boxShadow: `0 0 ${20 + modelVolume * 100}px rgba(59, 130, 246, 0.4)`
-                    }}
-                  ></div>
-                  <div 
-                    className="absolute rounded-full bg-blue-500/10 transition-all duration-100 ease-out"
-                    style={{ 
-                      width: `${80 + modelVolume * 200}px`, 
-                      height: `${80 + modelVolume * 200}px`,
-                      opacity: 0.3
-                    }}
-                  ></div>
-                  <Bot size={48} className="text-blue-600/50 animate-pulse" />
-               </div>
-               
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-24 text-center">
-                  <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest animate-pulse">Uni10 Live Listening...</p>
-               </div>
-            </div>
-          )}
+          
           <div ref={bottomRef} className="h-4" />
         </div>
       )}

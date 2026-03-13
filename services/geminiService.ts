@@ -245,6 +245,7 @@ export class LiveClient {
             console.log("Live Socket Opened");
             this.onStatus("connected");
             if (this.audioContext && this.stream) {
+              if (this.audioContext.state === 'suspended') this.audioContext.resume();
               const source = this.audioContext.createMediaStreamSource(this.stream);
               const scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
               scriptProcessor.onaudioprocess = (e) => {
@@ -267,23 +268,34 @@ export class LiveClient {
             if (message.serverContent?.inputTranscription) this.onTranscription(message.serverContent.inputTranscription.text, true, !!message.serverContent.turnComplete);
             if (message.serverContent?.outputTranscription) this.onTranscription(message.serverContent.outputTranscription.text, false, !!message.serverContent.turnComplete);
             
-            // Audio Playback logic
+            // Audio Playback logic: Support multiple possible data paths from Multimodal Live API
             const serverContent = message.serverContent as any;
-            const audioData = serverContent?.modelDraft?.audio || serverContent?.modelDraft?.inlineData?.data;
+            let audioData = serverContent?.modelDraft?.audio || serverContent?.modelDraft?.inlineData?.data;
+            
+            // NEW: Check parts array which is common in Gemini 2.0 Live
+            if (!audioData && serverContent?.modelDraft?.parts) {
+              const part = serverContent.modelDraft.parts.find((p: any) => p.inlineData?.data);
+              if (part) audioData = part.inlineData.data;
+            }
+
             if (audioData && this.audioContext) {
+              if (this.audioContext.state === 'suspended') this.audioContext.resume();
               try {
                 const binary = decode(audioData as string);
-                const int16 = new Int16Array(binary.buffer);
+                // Ensure correct interpretation of PCM bytes (16-bit)
+                const int16 = new Int16Array(binary.buffer as ArrayBuffer, binary.byteOffset, binary.byteLength / 2);
                 const float32 = new Float32Array(int16.length);
-                let sum = 0;
+                let sumSq = 0;
                 for (let i = 0; i < int16.length; i++) {
                   float32[i] = int16[i] / 32768.0;
-                  sum += float32[i] * float32[i];
+                  sumSq += float32[i] * float32[i];
                 }
-                const rms = Math.sqrt(sum / float32.length);
-                this.onVolumeChange(rms, false);
+                
+                const rms = Math.sqrt(sumSq / float32.length);
+                this.onVolumeChange(rms * 1.8, false); // Increased sensitivity
 
-                const buffer = this.audioContext.createBuffer(1, float32.length, 16000);
+                // Gemini 2.0 Live typically uses 24000Hz. Let's create buffer with 24k if possible, or 16k if that's what we requested.
+                const buffer = this.audioContext.createBuffer(1, float32.length, 24000); 
                 buffer.getChannelData(0).set(float32);
                 const source = this.audioContext.createBufferSource();
                 source.buffer = buffer;

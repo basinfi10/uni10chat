@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const APP_VERSION = "v2.27";
+const APP_VERSION = "v2.28";
 
 const App: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -143,9 +143,7 @@ const App: React.FC = () => {
       setModelVolume(0);
 
       // Clear current chat session messages on entry
-      if (currentSessionId) {
-        setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [] } : s));
-      }
+      setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [] } : s));
 
       const persona = LIVE_PERSONAS.find(p => p.id === selectedPersonaId) || LIVE_PERSONAS[0];
       
@@ -170,19 +168,19 @@ const App: React.FC = () => {
           }
         },
         (text, isUser, isFinal) => {
-          if (isUser) {
-            setLiveUserTrans(prev => isFinal ? "" : prev + text);
-            if (isFinal && text.trim()) {
-              // Add user transcript to chat session
-              handleAppendLiveTranscript(Role.USER, text);
+            if (isUser) {
+              setLiveUserTrans(prev => isFinal ? "" : prev + text);
+              if (isFinal && text.trim()) {
+                handleAppendLiveTranscript(Role.USER, text);
+              }
+            } else {
+              setLiveModelTrans(text);
+              if (isFinal && text.trim()) {
+                handleAppendLiveTranscript(Role.MODEL, text);
+                // AI 대답 후 3초 뒤에 라이브 텍스트 클리어 (사용자 요청: 자동으로 clear 되게 한다)
+                setTimeout(() => setLiveModelTrans(""), 3000);
+              }
             }
-          } else {
-            setLiveModelTrans(prev => text);
-            if (isFinal && text.trim()) {
-              // Add model transcript to chat session
-              handleAppendLiveTranscript(Role.MODEL, text);
-            }
-          }
         },
         (volume, isUser) => {
           if (isUser) setUserVolume(volume);
@@ -194,15 +192,16 @@ const App: React.FC = () => {
         const fullInstruction = PERSONA_COMMON_RULES + "\n" + persona.systemInstruction;
         console.log("Connecting to Live Client with persona:", persona.label);
         
-        // 연결 전 안내 메시지 (상태 업데이트)
-        setLiveModelTrans("소담이가 대화를 준비하고 있습니다... 잠시만 기다려 주세요.");
+        // 연결 전 안내 메시지 (상태 업데이트) - 음성 표기창에 메세지로 상태 메세지를 보임
+        setLiveModelTrans("연결 중... 대화를 준비하고 있습니다.");
         
         await liveClientRef.current.connect(fullInstruction);
         console.log("Live Client connected successfully");
         
-        // 연결 성공 후 초기 메시지
-        setLiveModelTrans(""); // 안내 메시지 지우기
-        handleAppendLiveTranscript(Role.MODEL, persona.initialMessage);
+        // 연결 성공 후 초기 메시지 - 음성 문자 표시부에만 표시 (메인 채팅창 제외)
+        setLiveModelTrans(persona.initialMessage);
+        // handleAppendLiveTranscript(Role.MODEL, persona.initialMessage); // 제거: 메인 채팅창에 안 나오게 함
+        setTimeout(() => setLiveModelTrans(""), 5000);
       } catch (err) {
         console.error("Live Client connection failed:", err);
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -211,10 +210,11 @@ const App: React.FC = () => {
         setLiveStatus("error");
         
         if (errMsg.includes("마이크")) {
-          alert(`마이크 설정 오류: ${errMsg}\n\n라이브 채팅은 음성 입력이 필수입니다. 마이크 연결 확인 후 다시 시도해 주세요.`);
+          setLiveModelTrans(`마이크 설정 오류: ${errMsg}`);
         } else {
-          alert(`라이브 채팅 연결 실패: ${errMsg}`);
+          setLiveModelTrans(`연결 실패: ${errMsg}`);
         }
+        setTimeout(() => setLiveModelTrans(""), 5000);
       }
     }
   };
@@ -255,8 +255,11 @@ const App: React.FC = () => {
 
   const handleSetMode = (newMode: AppMode) => { 
     setMode(prev => prev === newMode ? AppMode.CHAT : newMode); 
-    setIsMobileSidebarOpen(false); 
-    // Clear live transcripts and volume when leaving live mode or changing modes
+    // Clear live mode status and disconnect
+    if (isInterpretActive) {
+       liveClientRef.current?.disconnect();
+       setIsInterpretActive(false);
+    }
     setLiveUserTrans("");
     setLiveModelTrans("");
     setUserVolume(0);
