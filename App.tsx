@@ -5,8 +5,8 @@ import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import InputArea from './components/InputArea';
 import ApiKeyModal from './components/ApiKeyModal';
-import { AppMode, Attachment, ChatMessage, ChatSession, Role, ChatFeatures, PromptStyle, InterpretationMode, MODELS } from './types';
-import { streamResponse, handleImageFeature, generateSpeech, updateApiKey, LiveClient } from './services/geminiService';
+import { AppMode, Attachment, ChatMessage, ChatSession, Role, ChatFeatures, PromptStyle, InterpretationMode, MODELS, TTSMode } from './types';
+import { streamResponse, handleImageFeature, generateSpeech, speakWithBrowser, updateApiKey, LiveClient } from './services/geminiService';
 import { Sparkles, Menu } from 'lucide-react';
 import { LIVE_PERSONAS, PERSONA_COMMON_RULES } from './constants/LivePersonas';
 
@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const APP_VERSION = "v2.29.1";
+const APP_VERSION = "v2.30.0";
 
 const App: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -51,6 +51,7 @@ const App: React.FC = () => {
 
   const [isMicActive, setIsMicActive] = useState(false);
   const [isSpeakerActive, setIsSpeakerActive] = useState(false);
+  const [ttsMode, setTtsMode] = useState<TTSMode>('api');
   const [currentlyPlayingId, setCurrentlyPlayingId] = useState<string | null>(null);
   const [audioVolume, setAudioVolume] = useState(1.0);
   const [isAudioLooping, setIsAudioLooping] = useState(false);
@@ -79,6 +80,9 @@ const App: React.FC = () => {
       } else {
         setIsSettingsModalOpen(true);
       }
+
+      const savedTtsMode = localStorage.getItem('uni10_tts_mode') as TTSMode;
+      if (savedTtsMode) setTtsMode(savedTtsMode);
     };
     initApp();
   }, []);
@@ -89,6 +93,10 @@ const App: React.FC = () => {
       try { localStorage.setItem('uni10_sessions', JSON.stringify(sessionsToSave)); } catch (e) {}
     }
   }, [sessions, isHistoryLoaded, currentSessionId]);
+
+  useEffect(() => {
+    localStorage.setItem('uni10_tts_mode', ttsMode);
+  }, [ttsMode]);
 
   useEffect(() => {
     if (globalAudioRef.current) {
@@ -294,7 +302,16 @@ const App: React.FC = () => {
           accumulatedText += chunk;
           updateBotMessage(botMsgId, currentSessionId, { text: accumulatedText });
         }, abortControllerRef.current.signal);
-        if (isSpeakerActive && accumulatedText.trim()) { handleGenerateSpeech(botMsgId, accumulatedText, 'Kore'); }
+        
+        if (isSpeakerActive && accumulatedText.trim()) { 
+          const langMap = {
+            [AppMode.ENGLISH_LEARNING]: { api: 'Enus', browser: 'en-US' },
+            [AppMode.JAPANESE_LEARNING]: { api: 'Jajp', browser: 'ja-JP' },
+            default: { api: 'Kore', browser: 'ko-KR' }
+          };
+          const speakerConfig = langMap[mode as keyof typeof langMap] || langMap.default;
+          handleGenerateSpeech(botMsgId, accumulatedText, ttsMode === 'api' ? speakerConfig.api : speakerConfig.browser); 
+        }
       }
     } catch (error: any) { addMessageToSession(currentSessionId, Role.MODEL, `\n\n### ⛔ 시스템 오류\n${error.message}`, botMsgId, activeModel); } 
     finally { setIsGenerating(false); abortControllerRef.current = null; }
@@ -315,6 +332,22 @@ const App: React.FC = () => {
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("음성 생성 시간이 초과되었습니다. 네트워크 상태를 확인하거나 잠시 후 다시 시도해 주세요.")), 60000));
 
     try {
+      if (ttsMode === 'browser') {
+        speakWithBrowser(text, voice);
+        setCurrentlyPlayingId(msgId);
+        // Browser TTS onended handling
+        if (window.speechSynthesis) {
+           const checkEnded = setInterval(() => {
+             if (!window.speechSynthesis.speaking) {
+               setCurrentlyPlayingId(null);
+               clearInterval(checkEnded);
+             }
+           }, 500);
+        }
+        updateBotMessage(msgId, targetSessionId, { isAudioGenerating: false });
+        return;
+      }
+
       const audioUrl = await Promise.race([generateSpeech(text, voice), timeoutPromise]) as string;
       updateBotMessage(msgId, targetSessionId, { audioUrl, isAudioGenerating: false });
       handlePlayAudio(msgId);
@@ -428,7 +461,11 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-hidden relative flex flex-col">
            <ChatArea 
              messages={getCurrentSession()?.messages || []} isGenerating={isGenerating} onGenerateSpeech={handleGenerateSpeech}
-             currentlyPlayingId={currentlyPlayingId} onStopAudio={() => { globalAudioRef.current.pause(); setCurrentlyPlayingId(null); }}
+             currentlyPlayingId={currentlyPlayingId} onStopAudio={() => { 
+                globalAudioRef.current.pause(); 
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                setCurrentlyPlayingId(null); 
+             }}
              onPlayAudio={handlePlayAudio} onResetSpeech={handleResetSpeech}
              onOpenSettings={() => setIsSettingsModalOpen(true)} onClearAll={handleClearAllSettings}
              audioVolume={audioVolume} setAudioVolume={setAudioVolume}
@@ -442,6 +479,7 @@ const App: React.FC = () => {
             onSend={handleSendMessage} isGenerating={isGenerating} onStop={() => abortControllerRef.current?.abort()}
             mode={mode} features={features} setFeatures={setFeatures} isMicActive={isMicActive} toggleMic={() => setIsMicActive(!isMicActive)}
             isSpeakerActive={isSpeakerActive} toggleSpeaker={() => setIsSpeakerActive(!isSpeakerActive)}
+            ttsMode={ttsMode} setTtsMode={setTtsMode}
             promptStyle={promptStyle} setPromptStyle={setPromptStyle} isAutoTranslate={isAutoTranslate} toggleAutoTranslate={() => setIsAutoTranslate(!isAutoTranslate)}
             isInterpretActive={isInterpretActive} interpretMode={interpretMode} setInterpretMode={setInterpretMode} toggleInterpret={handleToggleLiveChat}
             userVolume={userVolume}

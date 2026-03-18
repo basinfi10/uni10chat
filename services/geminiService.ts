@@ -137,6 +137,27 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
   }
 };
 
+export const speakWithBrowser = (text: string, lang: string = 'ko-KR') => {
+  if (!window.speechSynthesis) {
+    console.warn("Browser does not support Speech Synthesis");
+    return;
+  }
+
+  // Cancel any ongoing speech
+  window.speechSynthesis.cancel();
+
+  // Clean text: remove markdown symbols
+  const cleanText = text.replace(/[#*`_~[\]()>]/g, '').trim();
+  if (!cleanText) return;
+
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.lang = lang;
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+
+  window.speechSynthesis.speak(utterance);
+};
+
 export const handleImageFeature = async (prompt: string, attachments: Attachment[]): Promise<string> => {
   try {
     const ai = getAI();

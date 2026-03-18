@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { AppMode, Attachment, ChatFeatures, PromptStyle, InterpretationMode } from '../types';
+import { AppMode, Attachment, ChatFeatures, PromptStyle, InterpretationMode, TTSMode } from '../types';
 import { FUNC_PROMPTS } from '../constants/FuncPrompts';
 import { 
   Send, Paperclip, X, Mic, Volume2, VolumeX, Menu, 
@@ -21,6 +21,8 @@ interface InputAreaProps {
   toggleMic: () => void;
   isSpeakerActive: boolean;
   toggleSpeaker: () => void;
+  ttsMode: TTSMode;
+  setTtsMode: (mode: TTSMode) => void;
   promptStyle: PromptStyle;
   setPromptStyle: (style: PromptStyle) => void;
   isAutoTranslate: boolean;
@@ -84,6 +86,8 @@ const InputArea: React.FC<InputAreaProps> = ({
   toggleMic,
   isSpeakerActive,
   toggleSpeaker,
+  ttsMode,
+  setTtsMode,
   promptStyle,
   setPromptStyle,
   isAutoTranslate,
@@ -230,10 +234,38 @@ const InputArea: React.FC<InputAreaProps> = ({
         </button>
 
         <div className="flex-1"></div>
-        <button onClick={toggleSpeaker} className={`flex items-center gap-2 px-3 h-10 rounded-full transition-all border shadow-sm mr-1 ${isSpeakerActive ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`} title="자동 음성 출력">
-          {isSpeakerActive ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          <span className="text-[10px] font-black uppercase tracking-tighter">음성 생성</span>
-        </button>
+        <div className="flex items-center bg-gray-50 rounded-full p-1 border border-gray-100 mr-1">
+          <button 
+            onClick={() => {
+              if (isSpeakerActive && ttsMode === 'api') {
+                toggleSpeaker();
+              } else {
+                if (!isSpeakerActive) toggleSpeaker();
+                setTtsMode('api');
+              }
+            }} 
+            className={`flex items-center gap-1.5 px-2.5 h-8 rounded-full transition-all ${isSpeakerActive && ttsMode === 'api' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100'}`} 
+            title="API 음성 (고품질)"
+          >
+            <Sparkles size={14} />
+            <span className="text-[9px] font-black uppercase tracking-tighter">API</span>
+          </button>
+          <button 
+            onClick={() => {
+              if (isSpeakerActive && ttsMode === 'browser') {
+                toggleSpeaker();
+              } else {
+                if (!isSpeakerActive) toggleSpeaker();
+                setTtsMode('browser');
+              }
+            }} 
+            className={`flex items-center gap-1.5 px-2.5 h-8 rounded-full transition-all ${isSpeakerActive && ttsMode === 'browser' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100'}`} 
+            title="브라우저 음성 (빠름)"
+          >
+            <Volume2 size={14} />
+            <span className="text-[9px] font-black uppercase tracking-tighter">WEB</span>
+          </button>
+        </div>
         <button onClick={toggleMic} className={`flex items-center justify-center w-9 h-9 rounded-full transition-all border shadow-sm mr-1 relative ${isMicActive ? 'bg-green-600 text-white border-green-700 ring-4 ring-green-100 scale-110' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}><Mic size={18} />{isMicActive && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>}</button>
       </div>
 

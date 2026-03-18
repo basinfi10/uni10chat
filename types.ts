@@ -19,6 +19,8 @@ export enum AppMode {
 
 export type InterpretationMode = 'voice_text' | 'text_only' | 'subtitle_text' | 'voice_only';
 
+export type TTSMode = 'api' | 'browser';
+
 export type PromptStyle = 'default' | 'blog' | 'enhance';
 
 export interface ChatFeatures {
